@@ -1,0 +1,10 @@
+{
+    "id": "lua-console",
+    "name": "Lua Console",
+    "version": "1.0.0",
+    "minAppVersion": "1.9.12",
+    "description": "Adds a Lua interpreter to Obsidian",
+    "author": "Garin Wally",
+    "authorUrl": "https://github.com/WindfallLabs/",
+    "isDesktopOnly": false
+}

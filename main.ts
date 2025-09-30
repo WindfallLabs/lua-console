@@ -10,7 +10,7 @@ export default class LuaConsolePlugin extends Plugin {
         );
 
         // Add ribbon icon to open console
-        this.addRibbonIcon('terminal', 'Open Lua Console', () => {
+        this.addRibbonIcon('moon', 'Open Lua Console', () => {
             this.activateView();
         });
 
@@ -36,6 +36,7 @@ export default class LuaConsolePlugin extends Plugin {
 
         if (!leaf) {
             // Create new leaf in right sidebar
+            // @ts-ignore
             leaf = workspace.getRightLeaf(false);
             await leaf.setViewState({
                 type: LUA_CONSOLE_VIEW_TYPE,

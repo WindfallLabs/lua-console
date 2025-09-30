@@ -13,7 +13,8 @@ end
 m = Metadata:new(c)
 
 --[[
-root = vault.getRoot()
+A multiline
+comment
 ]]
 
 function inspect_table(t)
@@ -30,16 +31,25 @@ Note = {
     content = "",
 }
 
-function Note:new(name, content)
+function Note:new(name)
     o = {}
     setmetatable(o, self)
     self.__index = self
     self.name = name
-    self.path = path
-    self.content = content
+    --self.path = path
+    self.content = getNoteContent(name):await()
+    self.metadata_str = app.getFrontmatter(self.content).frontmatter
+    -- This sucks
+    self.metadata = app.parseYaml(self.metadata_str)
     return o
 end
 
-note = Note:new(n)
+function get_note(name)
+    return Note:new(name)
+end
+
+
+--note = Note:new(n)
+note = get_note(n)
 print(note.content)
 

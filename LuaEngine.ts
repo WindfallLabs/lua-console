@@ -1,9 +1,11 @@
-import { App } from 'obsidian';
+import { App, TFile, getFrontMatterInfo, parseYaml } from 'obsidian';
 import { LuaFactory, LuaEngine as WasmoonEngine } from 'wasmoon';
+
+const appVersion = "1.0.0-dev";
 
 export class LuaEngine {
     private factory: LuaFactory | null = null;
-    private lua: WasmoonEngine | null = null;
+    lua: WasmoonEngine | null = null;
     private app: App;
 
     constructor(app: App) {
@@ -16,27 +18,65 @@ export class LuaEngine {
         }
 
         try {
-            // Initialize factory here, not in constructor
             this.factory = new LuaFactory();
             this.lua = await this.factory.createEngine();
 
-            // Expose Obsidian app to Lua
             await this.exposeObsidianAPI();
-
-            // Set up print function to capture output
             await this.setupPrintCapture();
+            await this.setupCustomGlobals();
+            await this.exposeNoteAPI();
         } catch (error) {
             console.error('Failed to initialize Lua engine:', error);
             throw new Error(`Lua initialization failed: ${error.message}`);
         }
     }
 
+    private async exposeNoteAPI(): Promise<void> {
+        if (!this.lua) return;
+
+        // Expose async Note creation function
+        const createNote = async (nameOrPath: string) => {
+            const files: TFile[] = this.app.vault.getMarkdownFiles();
+            const file: TFile | undefined = files.find(f => 
+                f.basename === nameOrPath || 
+                f.basename === nameOrPath.replace(/\.md$/, '') ||
+                f.path === nameOrPath
+            );
+            
+            if (!file) {
+                throw new Error(`File not found: ${nameOrPath}`);
+            }
+            
+            const content = await this.app.vault.read(file);
+            
+            return {
+                name: file.basename,
+                path: file.path,
+                content: content,
+                extension: file.extension
+            };
+        };
+
+        // Expose the function to Lua
+        this.lua.global.set('Note', createNote);
+
+        // Also expose a simple getNoteContent for backward compatibility
+        const getNoteContent = async (nameOrPath: string): Promise<string> => {
+            const note = await createNote(nameOrPath);
+            return note.content;
+        };
+
+        this.lua.global.set('getNoteContent', getNoteContent);
+    }
+
     private async exposeObsidianAPI(): Promise<void> {
         if (!this.lua) return;
 
-        // Create a JavaScript proxy that Lua can interact with
         const appProxy = {
-            getName: () => this.app.vault.getName(),
+            //getName: () => this.app.vault.getName(),
+            getFrontmatter: (content: string) => getFrontMatterInfo(content),
+            parseYaml: (content: string) => parseYaml(content),
+
             getActiveFile: () => {
                 const file = this.app.workspace.getActiveFile();
                 return file ? {
@@ -53,14 +93,11 @@ export class LuaEngine {
                     basename: f.basename
                 }));
             },
-            // Expose the full app object with caution
             _raw: this.app
         };
 
-        // Set the app global in Lua
         this.lua.global.set('app', appProxy);
 
-        // Add some helpful utility functions
         this.lua.global.set('log', (message: string) => {
             console.log('[Lua]', message);
             return message;
@@ -70,7 +107,6 @@ export class LuaEngine {
     private async setupPrintCapture(): Promise<void> {
         if (!this.lua) return;
 
-        // Override Lua's print function to return values instead of printing to stdout
         await this.lua.doString(`
             _print_output = ""
             function print(...)
@@ -84,6 +120,15 @@ export class LuaEngine {
         `);
     }
 
+    private async setupCustomGlobals(): Promise<void> {
+        if (!this.lua) return;
+
+        await this.lua.doString("_lua_console = {}");
+        await this.lua.doString(`_lua_console.version = "Lua Console ${appVersion}"`);
+        await this.lua.doString('_lua_console.about = "A Lua interpreter inside Obsidian"');
+        await this.lua.doString('_lua_console.header = _lua_console.version.." -- ".._lua_console.about.."\\n".._VERSION');
+    }
+
     async execute(code: string): Promise<any> {
         if (!this.lua) {
             throw new Error('Lua engine not initialized');
@@ -93,7 +138,7 @@ export class LuaEngine {
         await this.lua.doString('_print_output = ""');
 
         try {
-            // Execute the code
+            // Execute the code - promises will be handled by wasmoon-async-fix
             const result = await this.lua.doString(code);
 
             // Check if there was any print output

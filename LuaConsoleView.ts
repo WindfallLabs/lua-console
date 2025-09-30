@@ -31,7 +31,7 @@ export class LuaConsoleView extends ItemView {
     }
 
     getIcon(): string {
-        return 'terminal';
+        return 'moon';
     }
 
     private loadPrism() {
@@ -88,10 +88,13 @@ export class LuaConsoleView extends ItemView {
         (this.outputEl as HTMLElement).style.backgroundColor = 'var(--background-primary-alt)';
         (this.outputEl as HTMLElement).style.fontFamily = 'var(--font-monospace)';
 
+        // -----------------------------------------
         // Initialize Lua engine with error handling
         try {
             await this.luaEngine.initialize();
-            this.addOutput('Lua Console ready. The Obsidian app is available as "app".', 'info');
+            //this.addOutput('Lua Console ready. The Obsidian app is available as "app".', 'info');
+            this.addOutput(await this.luaEngine.execute('print(_lua_console.header)'), 'info');
+            //this.addOutput("Ready.", 'info');
         } catch (error) {
             this.addOutput(`Failed to initialize Lua: ${error.message}`, 'error');
             this.addOutput('Check the developer console for details.', 'error');
